@@ -26,16 +26,31 @@
   const isFemale = v => /aria|jenny|ava|emma|michelle|ana|samantha|allison|nicky|zoe|zira|female|google us english/i.test(v.name);
 
   function loadVoices() {
-    voices = (synth ? synth.getVoices() : []).filter(v => score(v) >= 0).sort((a, b) => score(b) - score(a));
-    if (!voices.length) voices = (synth ? synth.getVoices() : []).filter(v => /^en/i.test(v.lang));
+    const all = synth ? synth.getVoices() : [];
+    voices = all.filter(v => score(v) >= 0).sort((a, b) => score(b) - score(a));
+    if (!voices.length) voices = all.filter(v => /^en/i.test(v.lang));
     const sel = document.getElementById("voice-select");
     const saved = localStorage.getItem("a2voice");
     chosen = voices.find(v => v.name === saved) || voices[0] || null;
     sel.innerHTML = voices.length
       ? voices.map(v => `<option value="${esc(v.name)}"${chosen && v.name === chosen.name ? " selected" : ""}>${esc(v.name.replace(/Microsoft |Google /, ""))}</option>`).join("")
-      : `<option>Default voice</option>`;
+      : `<option value="">American English (Auto)</option>`;
   }
-  if (synth) { loadVoices(); synth.onvoiceschanged = loadVoices; }
+  if (synth) {
+    loadVoices();
+    synth.onvoiceschanged = loadVoices;
+    setTimeout(loadVoices, 300);
+    setTimeout(loadVoices, 1000);
+    // Mobile unlock on first interaction
+    const unlock = () => {
+      synth.resume();
+      loadVoices();
+      window.removeEventListener("touchstart", unlock);
+      window.removeEventListener("click", unlock);
+    };
+    window.addEventListener("touchstart", unlock, { once: true, passive: true });
+    window.addEventListener("click", unlock, { once: true });
+  }
   document.getElementById("voice-select").addEventListener("change", e => {
     chosen = voices.find(v => v.name === e.target.value) || chosen;
     localStorage.setItem("a2voice", chosen.name);
@@ -141,6 +156,110 @@
     });
   }
 
+  /* ───────── Teacher customisation (stored in this browser; shareable through a link) ───────── */
+  const b64e = o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const b64d = s => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/")))));
+  const T = { local: {}, shared: null };
+  try { T.local = JSON.parse(localStorage.getItem("a2teacher") || "{}"); } catch (e) { }
+  try { const p = new URLSearchParams(location.search).get("t"); if (p) T.shared = b64d(p); } catch (e) { }
+  let teacherOn = sessionStorage.getItem("a2tm") === "1";
+  const cfg = () => teacherOn ? T.local : (T.shared || T.local);
+  const ucfg = n => (cfg().units || {})[n] || {};
+  const saveLocal = () => localStorage.setItem("a2teacher", JSON.stringify(T.local));
+  const editU = n => { T.local.units = T.local.units || {}; return (T.local.units[n] = T.local.units[n] || {}); };
+  const safe = u => /^https?:\/\//i.test((u || "").trim()) ? u.trim() : "";
+  const DEFAULT_VIDEOS = {
+    1: [
+      { t: "Video Conversation: 'How Was Your Weekend?'", u: "https://www.youtube.com/watch?v=YGFpga2q-gA", d: "Watch the conversation between adults. Notice the past simple verbs (was, had, went, visited) and time expressions." }
+    ],
+    2: [
+      { t: "Video Conversation: Talking About Holidays", u: "https://www.youtube.com/watch?v=LyEqLzL4KWY", d: "Listen to the speakers talk about past vacations. Listen for irregular past forms like took, ate, saw and went." }
+    ],
+    3: [
+      { t: "Video Lesson: Talking About the Past with 'Used To'", u: "https://www.youtube.com/watch?v=yZeCWdZeKUk", d: "Learn how adults talk about childhood memories, habits, and past routines with 'used to'." }
+    ],
+    4: [
+      { t: "Video Story: Past Simple & Past Continuous in Action", u: "https://www.youtube.com/watch?v=rgHYy90qj2w", d: "Watch how when and while link a background situation with a sudden unexpected event." }
+    ],
+    5: [
+      { t: "Video Dialogue: City Life vs Suburbs & Countryside", u: "https://www.youtube.com/watch?v=Xhs6P9pT7TU", d: "Adults comparing living in the city and outside. Notice comparatives (-er, more) and superlatives (the best, the most)." }
+    ],
+    6: [
+      { t: "Video Scene: How to Order Food at a Restaurant", u: "https://www.youtube.com/watch?v=uUMPULuwdLI", d: "Real-life adult restaurant dialogue: booking, ordering starters, main courses, drinks and asking for the bill." }
+    ],
+    7: [
+      { t: "Video Conversation: Talking About Future Plans", u: "https://www.youtube.com/watch?v=79Yxp84s0KI", d: "Notice the difference between 'going to' (intentions), 'will' (predictions/decisions) and present continuous (arrangements)." }
+    ],
+    8: [
+      { t: "Video Conversation: Life Experiences & 'Have you ever...?'", u: "https://www.youtube.com/watch?v=_ftQpEpKOXo", d: "Adults discussing things they have done and haven't done yet using the present perfect and past simple." }
+    ]
+  };
+  const videosOf = n => ucfg(n).videos || DEFAULT_VIDEOS[n] || [];
+  function embedHtml(u) {
+    let m;
+    if ((m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/))) {
+      const st = (u.match(/[?&](?:t|start)=(\d+)/) || [])[1];
+      return `<div class="vwrap"><iframe src="https://www.youtube-nocookie.com/embed/${m[1]}?rel=0${st ? "&start=" + st : ""}" title="Video scene" loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>`;
+    }
+    if ((m = u.match(/vimeo\.com\/(?:video\/)?(\d+)/))) return `<div class="vwrap"><iframe src="https://player.vimeo.com/video/${m[1]}" title="Video scene" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
+    if (/\.(mp4|webm|ogg)(\?|$)/i.test(u)) return `<video class="vplain" controls preload="metadata" src="${esc(u)}"></video>`;
+    return "";
+  }
+  function videoSection(n, S) {
+    const uc = ucfg(n), list = videosOf(n);
+    let body = `<p>Watch the scenes, then talk about them with your partner. Use the grammar and vocabulary from this unit.</p>` +
+      (uc.note ? `<div class="tnote">📝 <b>Teacher's note:</b> ${esc(uc.note)}</div>` : "");
+    body += list.map((v, i) => { const u = safe(v.u); return `<div class="vcard"><div class="vtitle">🎬 ${esc(v.t || "Video")}</div>${v.d ? `<p class="vdesc">${esc(v.d)}</p>` : ""}${u ? embedHtml(u) : ""}
+      <a class="btn alt vopen" href="${esc(u)}" target="_blank" rel="noopener">Open in a new tab ↗</a>` +
+      (teacherOn ? `<button class="btn alt" data-vedit="${i}" type="button">✏️ Edit</button><button class="btn alt" data-vdel="${i}" type="button">🗑 Delete</button>` : "") + `</div>`; }).join("");
+    if (!list.length) body += `<p><i>No videos yet.</i></p>`;
+    if (teacherOn) body += `<div class="tform" id="tform"><h3>🎓 Teacher editor</h3>
+      <label>Video title<input id="tv-t" placeholder="e.g. Scene from Friends: What did you do?"></label>
+      <label>Link (YouTube, Vimeo, .mp4 or any web page)<input id="tv-u" type="url" placeholder="https://www.youtube.com/watch?v=…"></label>
+      <label>Instructions for students<input id="tv-d" placeholder="Watch from 1:20. Which past tense verbs do you hear?"></label>
+      <button class="btn main" id="tv-save" type="button">➕ Add video</button><button class="btn alt" id="tv-cancel" type="button" hidden>Cancel edit</button>
+      <label>Note for students in this unit<textarea id="tv-note" style="min-height:70px">${esc(uc.note || "")}</textarea></label>
+      <label>Picture for the listening activity (image link — leave empty for the default)<input id="tv-img" type="url" value="${esc(uc.img || "")}" placeholder="https://…/picture.jpg"></label>
+      <button class="btn main" id="tv-savemeta" type="button">💾 Save note &amp; picture</button><button class="btn alt" id="tv-reset" type="button">↺ Reset this unit</button></div>`;
+    return S(8, "Video Scenes &amp; Links", body);
+  }
+  function wireTeacher(n) {
+    const keep = () => { const y = scrollY; route(); scrollTo(0, y); };
+    let editing = -1;
+    const $ = id => document.getElementById(id);
+    app.querySelectorAll("[data-vdel]").forEach(b => b.onclick = () => { const u = editU(n); u.videos = videosOf(n).filter((_, i) => i !== +b.dataset.vdel); saveLocal(); keep(); });
+    app.querySelectorAll("[data-vedit]").forEach(b => b.onclick = () => { const v = videosOf(n)[+b.dataset.vedit]; editing = +b.dataset.vedit;
+      $("tv-t").value = v.t || ""; $("tv-u").value = v.u || ""; $("tv-d").value = v.d || ""; $("tv-save").textContent = "💾 Save changes"; $("tv-cancel").hidden = false; $("tform").scrollIntoView({ behavior: "smooth" }); });
+    if (!$("tv-save")) return;
+    $("tv-cancel").onclick = () => { editing = -1; $("tv-t").value = $("tv-u").value = $("tv-d").value = ""; $("tv-save").textContent = "➕ Add video"; $("tv-cancel").hidden = true; };
+    $("tv-save").onclick = () => {
+      const u = safe($("tv-u").value); if (!u) return toast("Please paste a full link starting with http:// or https://");
+      const v = { t: $("tv-t").value.trim() || "Video", u, d: $("tv-d").value.trim() }, list = videosOf(n).slice();
+      editing >= 0 ? list[editing] = v : list.push(v); editU(n).videos = list; saveLocal(); keep();
+    };
+    $("tv-savemeta").onclick = () => { const e = editU(n), im = $("tv-img").value.trim();
+      if (im && !safe(im)) return toast("The picture link must start with http:// or https://");
+      e.note = $("tv-note").value.trim(); e.img = im; saveLocal(); keep(); toast("Saved"); };
+    $("tv-reset").onclick = () => { if (confirm("Reset videos, note and picture of this unit to the defaults?")) { delete (T.local.units || {})[n]; saveLocal(); keep(); } };
+  }
+  function teacherBar() {
+    const bar = document.getElementById("teacher-bar"), btn = document.getElementById("teacher-btn");
+    btn.classList.toggle("on", teacherOn); btn.textContent = teacherOn ? "🎓 Teacher mode: ON" : "🎓 Teacher";
+    bar.hidden = !teacherOn; if (!teacherOn) return;
+    bar.innerHTML = `<b>Teacher tools</b> · edit the “Video Scenes &amp; Links” section (A2.n.8) in any unit.
+      <button class="chip" id="tb-link" type="button">🔗 Copy student link</button><button class="chip" id="tb-exp" type="button">⬇ Export</button>
+      <label class="chip" for="tb-imp">⬆ Import</label><input id="tb-imp" type="file" accept="application/json" hidden><button class="chip" id="tb-reset" type="button">↺ Reset all</button>`;
+    document.getElementById("tb-link").onclick = () => {
+      const base = location.origin + location.pathname, has = Object.keys(T.local.units || {}).length;
+      const url = has ? `${base}?t=${b64e(T.local)}#/` : base;
+      (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast("Student link copied — send it to your students"), () => prompt("Copy this link:", url));
+    };
+    document.getElementById("tb-exp").onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(T.local, null, 2)], { type: "application/json" })); a.download = "a2-teacher-content.json"; a.click(); };
+    document.getElementById("tb-imp").onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { try { T.local = JSON.parse(t); saveLocal(); route(); toast("Imported"); } catch (x) { toast("That file is not valid"); } }); };
+    document.getElementById("tb-reset").onclick = () => { if (confirm("Delete ALL your changes?")) { T.local = {}; saveLocal(); route(); } };
+  }
+  document.getElementById("teacher-btn").addEventListener("click", () => { teacherOn = !teacherOn; sessionStorage.setItem("a2tm", teacherOn ? "1" : "0"); route(); });
+
   /* ───────── Pages ───────── */
   function navHtml(cur) {
     document.getElementById("topnav").innerHTML = UNITS.map(u =>
@@ -151,7 +270,7 @@
     navHtml(0); document.title = "A2 English Course — 8 Units | CEFR Elementary EFL Coursebook";
     app.innerHTML = `
       <section class="hero"><h1>A2 English Course</h1>
-      <p>Eight units for CEFR A2 learners — from the past simple to the present perfect. Every unit has seven numbered sections: vocabulary &amp; collocations, grammar, practice, listening, reading, speaking and writing.</p></section>
+      <p>Eight units for CEFR A2 learners — from the past simple to the present perfect. Every unit has eight numbered sections: vocabulary &amp; collocations, grammar, practice, listening (with a picture), reading, speaking, writing and video scenes.</p></section>
       <div class="grid">${UNITS.map(u => `<a class="ucard" id="card-u${u.n}" href="#/unit/${u.n}"><span class="num">UNIT A2.${u.n}</span><span class="em">${u.emoji}</span>
         <h3>${esc(u.title)}</h3><small>${esc(u.topic)}</small><span class="gram">📘 ${esc(u.grammarName)}</span></a>`).join("")}</div>`;
   }
@@ -171,9 +290,10 @@
 
     const prac = S(3, "Practice", u.practice.map(ex => { const id = `e${uid++}`; exMap[id] = ex; return ex.type === "gap" ? gapBlock(ex, id) : mcqBlock(ex, id); }).join(""));
 
-    const L = u.listening;
+    const L = u.listening, img = safe(ucfg(n).img) || `img/unit${n}.jpg`;
     const who = [...new Set(L.lines.map(l => l[0]))];
-    const lis = S(4, "Listening", `<p><b>${esc(L.title)}</b> Press play, listen, then answer.</p>
+    const lis = S(4, "Listening", `<figure class="scene"><img src="${esc(img)}" alt="Picture for the listening activity" loading="lazy"><figcaption>👀 <b>Before you listen:</b> look at the picture. Who are the people? Where are they? What are they talking about?</figcaption></figure>
+      <p><b>${esc(L.title)}</b> Press play, listen, then answer.</p>
       <button class="btn main" id="play-dialog-${n}" type="button">▶ Play dialogue</button><button class="btn alt" id="stop-${n}" type="button">■ Stop</button>
       ${qBlock(L.qs, "Choose the correct answer.", "lq")}
       <details class="tscript"><summary>Show audio script</summary><div class="dialog">${L.lines.map(([s, t]) =>
@@ -189,11 +309,11 @@
       <div class="wc" id="wc-${n}">0 words</div><details class="model"><summary><b>Show a model answer</b></summary><p>${esc(u.writing.model)}</p>${speakBtn(u.writing.model, "Listen to model")}</details>`);
 
     app.innerHTML = `<header class="unit-head"><div class="tag">UNIT A2.${n} ${u.emoji}</div><h1>${esc(u.title)}</h1><div>${esc(u.topic)} · <b>${esc(u.grammarName)}</b></div>
-      <ul>${u.goals.map(g => `<li>${esc(g)}</li>`).join("")}</ul></header>${vocab}${gram}${prac}${lis}${rd}${sp}${wr}
+      <ul>${u.goals.map(g => `<li>${esc(g)}</li>`).join("")}</ul></header>${vocab}${gram}${prac}${lis}${rd}${sp}${wr}${videoSection(n, S)}
       <div class="pager">${n > 1 ? `<a class="btn alt" id="prev" href="#/unit/${n - 1}">← Unit ${n - 1}</a>` : `<a class="btn alt" href="#/">← Home</a>`}
       ${n < UNITS.length ? `<a class="btn main" id="next" href="#/unit/${n + 1}">Unit ${n + 1} →</a>` : `<a class="btn main" href="#/">Home</a>`}</div>`;
 
-    wire(app, exMap);
+    wire(app, exMap); wireTeacher(n);
     document.getElementById(`stop-${n}`).onclick = stop;
     document.getElementById(`play-dialog-${n}`).onclick = e => {
       const alt = altVoice(), vs = [chosen, alt];
@@ -206,7 +326,7 @@
   }
 
   function route() {
-    stop();
+    stop(); teacherBar();
     const m = location.hash.match(/#\/unit\/(\d+)/);
     m ? unit(+m[1]) : home();
   }

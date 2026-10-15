@@ -91,3 +91,21 @@ textarea{width:100%;min-height:130px;font:inherit;border:1px solid var(--line);b
   border-radius:12px;font-size:.9rem;z-index:50}
 @media(max-width:640px){.audio-ctrl label{display:none}.sec{padding:16px}.who{min-width:62px}}
 @media print{.topbar,.say,.btn,.audio-ctrl,.pager{display:none}}
+
+/* pictures, videos, teacher tools */
+.scene{margin:0 0 16px}
+.scene img{width:100%;max-height:440px;object-fit:cover;border-radius:var(--r);border:1px solid var(--line);box-shadow:var(--shadow);display:block}
+.scene figcaption{background:var(--bg2);border-radius:12px;padding:8px 14px;margin-top:8px;font-size:.95rem}
+.vcard{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+.vtitle{font:600 1.1rem 'Outfit'}
+.vdesc{margin:4px 0 10px;color:var(--muted)}
+.vwrap{position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;margin:8px 0;background:#000}
+.vwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vplain{width:100%;border-radius:12px;margin:8px 0}
+.vopen{display:inline-block;text-decoration:none;margin-top:4px}
+.tnote{background:#fff2d6;border-left:5px solid var(--accent2);border-radius:8px;padding:10px 14px;margin:8px 0}
+.tbar{background:#e6f6f3;border-bottom:1px solid var(--teal);padding:8px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:.9rem}
+.chip.on{background:var(--teal);color:#fff;border-color:var(--teal)}
+.tform{background:#eaf7f4;border:2px dashed var(--teal);border-radius:14px;padding:16px;margin-top:16px}
+.tform label{display:block;font-weight:700;margin:10px 0 0}
+.tform input,.tform textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-top:4px;background:#fff}
